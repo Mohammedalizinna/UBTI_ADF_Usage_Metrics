@@ -1,0 +1,106 @@
+{
+	"name": "get_refresh_schedules_dataflow",
+	"properties": {
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "get_refresh_schedules_api_ds",
+						"type": "DatasetReference"
+					},
+					"name": "source1"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "getrefresh_schedule_sql_ds",
+						"type": "DatasetReference"
+					},
+					"name": "sink1"
+				}
+			],
+			"transformations": [
+				{
+					"name": "flatten1"
+				},
+				{
+					"name": "flatten2"
+				},
+				{
+					"name": "derivedColumn1"
+				}
+			],
+			"scriptLines": [
+				"parameters{",
+				"     groupid as string,",
+				"     datasetid as string",
+				"}",
+				"source(output(",
+				"          body as ({@odata.context} as string, days as string[], enabled as boolean, localTimeZoneId as string, notifyOption as string, times as string[]),",
+				"          headers as [string,string]",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     httpMethod: 'GET',",
+				"     timeout: 30,",
+				"     requestInterval: 0,",
+				"     paginationRules: ['supportRFC5988' -> 'true'],",
+				"     responseFormat: ['type' -> 'json', 'documentForm' -> 'arrayOfDocuments']) ~> source1",
+				"source1 foldDown(unroll(body.days),",
+				"     mapColumn(",
+				"          days = body.days,",
+				"          enabled = body.enabled,",
+				"          localTimeZoneId = body.localTimeZoneId,",
+				"          notifyOption = body.notifyOption,",
+				"          times = body.times",
+				"     ),",
+				"     skipDuplicateMapInputs: false,",
+				"     skipDuplicateMapOutputs: false) ~> flatten1",
+				"flatten1 foldDown(unroll(times),",
+				"     mapColumn(",
+				"          days,",
+				"          enabled,",
+				"          localTimeZoneId,",
+				"          notifyOption,",
+				"          times",
+				"     ),",
+				"     skipDuplicateMapInputs: false,",
+				"     skipDuplicateMapOutputs: false) ~> flatten2",
+				"flatten2 derive(groupid = $groupid,",
+				"          datasetid = $datasetid) ~> derivedColumn1",
+				"derivedColumn1 sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          index_no as integer,",
+				"          dataset_id as string,",
+				"          workspace_id as string,",
+				"          days as string,",
+				"          times as string,",
+				"          enabled as string,",
+				"          localTimeZoneId as string,",
+				"          notifyOption as string,",
+				"          updated_time as timestamp",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          dataset_id = datasetid,",
+				"          workspace_id = groupid,",
+				"          days,",
+				"          times,",
+				"          enabled,",
+				"          localTimeZoneId,",
+				"          notifyOption",
+				"     )) ~> sink1"
+			]
+		}
+	}
+}
